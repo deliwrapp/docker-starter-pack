@@ -1,0 +1,84 @@
+version: '3.8'
+services:
+  apache:
+    build:
+      context: docker/apache
+      dockerfile: Dockerfile
+      args:  
+        DEBIAN_VERSION: bullseye
+    container_name: app_apache
+    extra_hosts:
+     - "app.local:127.0.0.1"
+    hostname: app.local
+    domainname: local
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      #- ./docker/apache/vhosts:/etc/apache2/sites-enabled
+      - .:/home/wwwroot/app
+    depends_on:
+      - php
+
+  database:
+    image: mysql:5.7
+    container_name: app_database
+    restart: always
+    ports:
+        - 8383:3306
+    volumes:
+      - ./docker/data/db:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: app_db
+      MYSQL_USER: app_db_user
+      MYSQL_PASSWORD: app_db_password
+
+  php:
+    build:
+      context: docker/php
+      dockerfile: Dockerfile
+      args: 
+        PHP_VERSION: 8.2
+        NODE_VERSION: 18.x
+    working_dir: /home/wwwroot/app
+    container_name: app_php
+    volumes:
+      - .:/home/wwwroot/app
+    environment:
+      - maildev_host=app_maildev
+    depends_on:
+      - maildev
+      - database
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: app_phpmyadmin
+    ports:
+      - 8585:80
+    environment:
+      PMA_HOST: database
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: app_db
+      MYSQL_USER: app_db_user
+      MYSQL_PASSWORD: app_db_password
+    links:
+      - database
+    depends_on:
+      - database
+    restart: always
+
+  maildev:
+    image: djfarrelly/maildev
+    container_name: app_maildev
+    ports:
+      - 8787:80
+    restart: always
+    extra_hosts:
+     - "mail.local:127.0.0.1"
+    hostname: mail.local
+    domainname: local
+
+volumes:
+    db-data:
